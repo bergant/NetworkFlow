@@ -16,10 +16,8 @@ turtles-own [
   p-demand ; demand potential
   p-supply ; supply potential
   
-  p-outputs ; output portfolio
-  p-inputs ; input portfolio
-  
-  tree-level ; just for analytical purposes
+  p-outputs ; output portfolio (demand diversity)
+  p-inputs ; input portfolio (supply diversity)
 ]
 
 links-own [
@@ -46,14 +44,14 @@ to setup
   
    ; create nodes
   create-outputs total-outputs [ 
-    set ycor max-pycor 
+    set ycor max-pycor - 0.3 * t-size
     set xcor min-pxcor + ( who + 0.5 ) / total-outputs * ( max-pxcor - min-pxcor ) 
     set p-demand 1.0
     set p-inputs no-turtles
     set p-outputs turtle-set self
   ]
   create-inputs total-inputs [ 
-    set ycor min-pycor 
+    set ycor min-pycor + 0.3 * t-size
     set xcor min-pxcor + ( who - total-outputs + 0.5 ) / total-inputs * ( max-pxcor - min-pxcor ) 
     set p-supply 1.0
     set p-inputs turtle-set self
@@ -61,6 +59,7 @@ to setup
   ]
 
   add-process-initial
+  
   update-states
 
   layout
@@ -79,7 +78,7 @@ end
 to go
   ; try to create a new activity
   add-process
-  if count processes > 5 [ add-process ]
+  repeat (count processes) / 5 [ add-process ]
 
   ; update supply and demand type
   ; balance supply and demand amplitude
@@ -124,48 +123,38 @@ end
 
 
 
+; New node by input branches
 ;         
 ;          Trunk
+;           .
 ;          /   
-;       [New]   
+;       [New]
+;       .   .
 ;      /     \
-;Branch1   Branch2
+; Branch1   Branch2
 ;
 
 to add-input
  
-  ; select the trunk and 2 branches
-  let max-output max [ count p-outputs ] of inputs
-  let trunk-candidates other processes with [ count p-outputs >= max-output ]
-  
-  ;let trunk-candidates other processes with [ count p-inputs <= count p-outputs ]
+  ; select the trunk... 
+  let n min list 5 count processes
+  let max-output max [ count p-outputs ] of n-of n processes
+  let trunk-candidates other processes with [ count p-outputs >= max-output   ]
   if not any? trunk-candidates [stop]
-  
-  
-  ;let trunk one-of ( turtle-set outputs other processes )
-  ;let trunk one-of ( turtle-set outputs other trunk-candidates  )
   let trunk one-of other trunk-candidates
+  
+  ;... and 2 branches
   let branches n-of 2 ( turtle-set inputs other trunk-candidates with [ self != trunk and count my-out-links < 5 ] )
-
-  ; read compoments from branches and trunck (without branches if in intersection)
-  let b-components turtle-set [ p-inputs ] of branches
-  let t-components turtle-set [ p-inputs ] of 
-    ( turtle-set [ in-link-neighbors ] of trunk ) with [ not member? self branches ]
-
   
   let valid? true
-  ; Rule #1: branch components must not cover all trunk components 
-  if is-subset? t-components b-components [ set valid? false die ]
-  
   ask branches
   [
-    ;Rule #2 trunk components must not cover all the branch components
-    if is-subset? p-inputs t-components [ set valid? false stop]
-    
-    ;Rule #3 nasprotna komponenta izbrane veje ne sme pokrivati nasprotnih komponent trunka (razen če je že veja)
-    if not member? trunk out-link-neighbors and any? [p-outputs] of trunk 
-    [ if is-subset? ( [p-outputs] of trunk ) p-outputs  [ set valid? false stop ] ]
-
+    ;Rule: trunk outputs should not be subset of any branch outputs
+    ;  (razen če je že veja)
+    if BranchRule? [
+      if not member? trunk out-link-neighbors and any? [p-outputs] of trunk 
+      [ if is-subset? ( [p-outputs] of trunk ) p-outputs  [ set valid? false stop ] ]
+    ]
   ]
   
   ; connect if valid branch or die
@@ -185,43 +174,38 @@ to add-input
   
 end
 
+; New node by output branches
 ;
 ; Branch1  Branch2
+;    .       .
 ;     \     /
-;      [New]   
+;      [New]
+;        .   
 ;       /   
 ;    Trunk
 ;
-to add-output 
-  ; select the trunk and 2 branches
-  let max-input max [ count p-inputs ] of outputs
-  let trunk-candidates other processes with [ count p-inputs >= max-input ]  
-
+to add-output
+  ; select the trunk...
+  let n min list 5 count processes
+  let some-processes n-of n processes
+  let max-input max [ count p-inputs ] of some-processes
+  let trunk-candidates other processes with [ count p-inputs >= max-input   ]  
   if not any? trunk-candidates [stop]
-  
-;  let trunk one-of ( turtle-set inputs other trunk-candidates ) 
   let trunk one-of other trunk-candidates
+  
+  ;... and 2 branches
   let branches n-of 2 ( turtle-set outputs other trunk-candidates with [ self != trunk  and count my-in-links < 5 ] )
 
-  ; read compoments from branches and trunck (without branches if in intersection)
-  let b-components turtle-set [ p-outputs ] of branches
-  let t-components turtle-set [ p-outputs ] of 
-    ( turtle-set [ out-link-neighbors ] of trunk ) with [ not member? self branches ]
   
   let valid? true
-  ; Rule #1: branch components must not cover all trunk components 
-  if is-subset? t-components b-components [ set valid? false die ]
-  
   ask branches
   [
-    ;Rule #2 trunk components must not cover all the branch components
-    if is-subset? p-outputs t-components [ set valid? false stop]
-
-    ;Rule #3 nasprotna komponenta izbrane veje ne sme pokrivati nasprotnih komponent trunka (razen če je že veja) 
+    ;Rule: nasprotna komponenta izbrane veje ne sme pokrivati nasprotnih komponent trunka (razen če je že veja) 
     ; inputi veje   
-    if not member? trunk in-link-neighbors and any? [p-inputs] of trunk
-    [ if is-subset? ( [p-inputs] of trunk ) p-inputs  [ set valid? false  stop ] ]
-  
+    if BranchRule? [
+      if not member? trunk in-link-neighbors and any? [p-inputs] of trunk
+      [ if is-subset? ( [p-inputs] of trunk ) p-inputs  [ set valid? false stop ] ]
+    ]  
   ]
   
   ; connect if valid branch or die
@@ -326,9 +310,9 @@ to update-states
 end
 
 to clear-states
-  ask processes [ set p-outputs no-turtles set p-inputs no-turtles set p-supply 0 set p-demand 0 set tree-level 0]
-  ask outputs [ set p-inputs no-turtles set p-supply 0 set tree-level 0]
-  ask inputs [ set p-outputs no-turtles set p-demand 0 set tree-level 1]
+  ask processes [ set p-outputs no-turtles set p-inputs no-turtles set p-supply 0 set p-demand 0 ]
+  ask outputs [ set p-inputs no-turtles set p-supply 0 ]
+  ask inputs [ set p-outputs no-turtles set p-demand 0 ]
   ask links [ set lp-supply 0 set lp-demand 0 ]
 end
 
@@ -342,7 +326,6 @@ to read-from-neighbours
   [
     set p-supply sum [ lp-supply ] of my-in-links
     set p-inputs turtle-set [p-inputs] of in-link-neighbors
-    set tree-level max [ tree-level ] of in-link-neighbors + 1
   ]
 
 
@@ -383,18 +366,16 @@ to layout
   ask turtles [ display-turtle ]
   display-links
 
-  
-  ;let theone max-one-of processes [ min ( list p-supply p-demand ) ]
   repeat 10 [
-    layout-spring processes links 0.5 2 5
-    ask n-of 3 inputs with [ any? out-link-neighbors ] [ arange-inputs ]
-    ask n-of 3 outputs with [ any? in-link-neighbors ] [ arange-outputs ]
-      ;layout-tutte (processes) links max-pxcor
-      
-    ;layout-radial processes links ( max-one-of processes [ min ( list count p-outputs count p-inputs ) ]  )
+    layout-spring processes links spring-c spring-l repulsion-c
+    if count inputs with [ any? out-link-neighbors ] >= 3 and count outputs with [ any? in-link-neighbors ] >= 3 [
+      ask n-of 3 inputs with [ any? out-link-neighbors ] [ arange-inputs ]
+      ask n-of 3 outputs with [ any? in-link-neighbors ] [ arange-outputs ]
+    ]
+
     display
   ]
-  
+   
 end
 
 
@@ -405,18 +386,34 @@ to display-turtle
     let ci count p-outputs
     let co count p-inputs
     ;show ci
-    let c1 ci / (ci + co) * 255
-    let c2 co / (ci + co) * 255
+    let c1 ci / ( max list (ci + co) 1 ) * 255
+    let c2 co / ( max list (ci + co) 1 ) * 255
     set color approximate-rgb c1 120 c2 
     if breed = outputs [ set color blue - 1 ]
     if breed = inputs [ set color red - 1 ]
     
     set-opacity 0.80 
-    set size sqrt ( min ( list p-demand p-supply ) ) / 2 + 0.3
+    set size sqrt ( min ( list p-demand p-supply ) ) / 2 + 0.3 * t-size
+    ;set posx
 
-    if-else show-labels2? 
-    [ set label ( word round ( p-demand * 100 ) "/" round ( p-supply * 100 ) )    ]
-    [ set label "" ]
+    set label ""
+    if show-labels2? [ 
+      set label ( word round ( p-demand * 100 ) "/" round ( p-supply * 100 ) )    
+    ]
+    if show-labels3? [    
+      let d-label 0
+      let s-label 0
+
+      ask p-outputs [ set d-label d-label + 10 ^ who ]
+      let sd-label word d-label ""
+      while [ length sd-label < count outputs ] [ set sd-label word "0" sd-label ]
+
+      ask p-inputs [ set s-label s-label + 10 ^ ( who - count outputs )  ]
+      let ss-label word s-label ""
+      while [ length ss-label < count inputs ] [ set ss-label word "0" ss-label ]
+      set label ( word sd-label "/" ss-label )
+    ]
+
 
 end
 
@@ -429,6 +426,7 @@ to display-links
     if-else show-labels? 
     [ set label ( word round ( lp-demand * 100 ) "/" round ( lp-supply * 100 ) ) ]
     [ set label "" ]
+
    ; set color gray - 3
     set-opacity 0.30 + 0.70 * link-flow / max-link-flow
   ] 
@@ -491,12 +489,12 @@ to export-graph
   
 end
 
-to movie
+to movie [ number-of-steps ]
   
   setup
   movie-start "out.mov"
   movie-grab-view ;; show the initial state
-  repeat 30
+  repeat number-of-steps
   [ go
     movie-grab-view ]
   movie-close
@@ -504,13 +502,13 @@ to movie
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-234
+226
 10
-780
-577
+731
+536
 20
 20
-13.0732
+12.0732
 1
 10
 1
@@ -532,9 +530,9 @@ ticks
 
 BUTTON
 11
-38
+18
 75
-71
+51
 Setup
 setup
 NIL
@@ -549,9 +547,9 @@ NIL
 
 BUTTON
 11
-79
+59
 76
-112
+92
 Go once
 go
 NIL
@@ -565,10 +563,10 @@ NIL
 1
 
 BUTTON
-85
-78
-146
-112
+1124
+484
+1185
+518
 Layout
 layout
 NIL
@@ -594,9 +592,9 @@ count links
 
 BUTTON
 80
-38
+18
 143
-71
+51
 Go
 go
 T
@@ -610,30 +608,30 @@ NIL
 1
 
 SLIDER
-10
-162
-187
-195
+12
+115
+189
+148
 total-outputs
 total-outputs
 1
 64
-32
+64
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-9
-204
-186
-237
+11
+157
+188
+190
 total-inputs
 total-inputs
 1
 64
-32
+64
 1
 1
 NIL
@@ -660,25 +658,25 @@ PENS
 "Diversity on output" 1.0 0 -2674135 true "" "plot sum [ min ( list p-demand p-supply ) * count p-inputs / total-inputs ] of outputs"
 
 SLIDER
-9
-250
+10
+209
 187
-283
+242
 initial-links
 initial-links
 0
 30
-4
+3
 1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-8
-309
-134
-342
+824
+558
+950
+591
 show-labels?
 show-labels?
 1
@@ -755,7 +753,7 @@ PLOT
 341
 1186
 471
-node flow
+log-log node flow
 fitness
 number of nodes
 0.0
@@ -769,10 +767,10 @@ PENS
 "default" 1.0 2 -16777216 true "" "let max-degree max [ node-flow ] of turtles\n;; for this plot, the axes are logarithmic, so we can't\n;; use \"histogram-from\"; we have to plot the points\n;; ourselves one at a time\nplot-pen-reset  ;; erase what we plotted before\n;; the way we create the network there is never a zero degree node,\n;; so start plotting at degree one\nlet degree 1\nlet step 1.5\nwhile [degree <= max-degree] [\n  let matches turtles with [ node-flow > degree and node-flow <= degree * step]\n  if any? matches\n    [ plotxy log degree 2\n             log (count matches) 2 ]\n  set degree degree * step\n]"
 
 SWITCH
-8
-346
-140
-379
+824
+595
+956
+628
 show-labels2?
 show-labels2?
 1
@@ -831,10 +829,10 @@ NIL
 1
 
 BUTTON
-783
-540
-886
-573
+1125
+527
+1228
+560
 Layout circle
 layout-radial turtles links ( max-one-of processes [ min ( list count p-outputs count p-inputs ) ]  )
 NIL
@@ -870,10 +868,10 @@ median [ count p-inputs ] of outputs
 11
 
 SLIDER
-192
-252
-225
-402
+10
+249
+187
+282
 link-balance
 link-balance
 0
@@ -882,7 +880,7 @@ link-balance
 0.02
 1
 NIL
-VERTICAL
+HORIZONTAL
 
 MONITOR
 1125
@@ -906,27 +904,71 @@ max [ link-flow ] of links
 1
 11
 
-MONITOR
-1204
-232
-1261
-277
-Tree
-max [ tree-level ] of turtles
-17
+INPUTBOX
+820
+486
+892
+546
+spring-c
+0.5
 1
-11
+0
+Number
 
-MONITOR
-1198
-281
-1279
-326
-Median Tree
-median [tree-level] of outputs with [ tree-level > 0 ]
+INPUTBOX
+894
+487
+948
+547
+spring-l
+2
+1
+0
+Number
+
+INPUTBOX
+952
+486
+1029
+546
+repulsion-c
 1
 1
-11
+0
+Number
+
+INPUTBOX
+1054
+485
+1110
+545
+t-size
+1.5
+1
+0
+Number
+
+SWITCH
+962
+593
+1095
+626
+show-labels3?
+show-labels3?
+1
+1
+-1000
+
+SWITCH
+10
+295
+134
+328
+BranchRule?
+BranchRule?
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
