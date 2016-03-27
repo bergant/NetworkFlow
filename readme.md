@@ -1,17 +1,16 @@
 # Network Flow Model
-Darko Bergant  
-2016-03-27  
+
+[![DOI](https://zenodo.org/badge/21125/bergant/NetworkFlow.svg)](https://zenodo.org/badge/latestdoi/21125/bergant/NetworkFlow)
 
 
 
 
 
-
-![](img/model-netlogo.png)
 
 ## PURPOSE
-
 The model demonstrates self-organisation of network structure, optimising flow from fixed diverse inputs to fixed diverse outputs.
+
+![](img/model-netlogo.png)
 
 
 ## HOW IT WORKS
@@ -99,10 +98,12 @@ If you switch off the branch rule, the system can't find the path to organized s
 
 ## CREDITS AND REFERENCES
 
-Darko Bergant, Network Flow, (2015), GitHub repository, https://github.com/bergant/NetworkFlow
+Darko Bergant 
 
+https://github.com/bergant/NetworkFlow
 
 This work is licensed under a [Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License](http://creativecommons.org/licenses/by-nc-sa/3.0/)
+
 
 
 
