@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+<meta name="author" content="Darko Bergant" />
+
+<meta name="date" content="2016-03-27" />
+
+<title>Network Flow Model</title>
+
+<script src="readme_files/jquery-1.11.0/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="readme_files/bootstrap-3.3.1/css/bootstrap.min.css" rel="stylesheet" />
+<script src="readme_files/bootstrap-3.3.1/js/bootstrap.min.js"></script>
+<script src="readme_files/bootstrap-3.3.1/shim/html5shiv.min.js"></script>
+<script src="readme_files/bootstrap-3.3.1/shim/respond.min.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<link rel="stylesheet"
+      href="readme_files/highlight/default.css"
+      type="text/css" />
+<script src="readme_files/highlight/highlight.js"></script>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs && document.readyState && document.readyState === "complete") {
+   window.setTimeout(function() {
+      hljs.initHighlighting();
+   }, 0);
+}
+</script>
+
+
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img { 
+  max-width:100%; 
+  height: auto; 
+}
+</style>
+<div class="container-fluid main-container">
+
+
+<div id="header">
+<h1 class="title">Network Flow Model</h1>
+<h4 class="author"><em>Darko Bergant</em></h4>
+<h4 class="date"><em>2016-03-27</em></h4>
+</div>
+
+
+<p><img src="img/model-netlogo.png" alt="" /></p>
+<div id="purpose" class="section level2">
+<h2>PURPOSE</h2>
+<p>The model demonstrates self-organisation of network structure, optimising flow from fixed diverse inputs to fixed diverse outputs.</p>
+</div>
+<div id="how-it-works" class="section level2">
+<h2>HOW IT WORKS</h2>
+<p><strong>Open System </strong></p>
+<p>Model simulates a distribution of demand and supply to intermediate network nodes based on system inputs and outputs. Inputs represent fixed diverse supply and outputs represent fixed diverse demand.</p>
+<p><strong>Network Structure</strong></p>
+<p>Intermediate nodes are connected to each other as inputs and outputs. Each node represents a demand to his input nodes and supply to his output nodes. Each node is also an information source to other nodes – current demand level is sensed from output nodes and supply level is sensed from input nodes.</p>
+<p><strong>Dynamic System</strong></p>
+<p>The network structure is self-designed and based on the decisions of individual vertices. The connection between two vertices is kept only if there is enough flow between the vertices which share the connection. New vertices are born periodically and they survive only if they carry enough flow. Flow is defined as the least of supply and demand.</p>
+<p><strong>Bounded Information</strong></p>
+<p>Each vertex can only use the information available at neighbour vertices. Also there is a maximum number of connections each vertex can handle. But there is no quantitative restrictions on flow for nodes nor connections.</p>
+<p><strong>Diversity</strong></p>
+<p>Each input node represent unique supply (good or service) and each output node represent special demand. The model defines each system input as a unit vector in N-dimensional space (if there are N inputs). In English: in case of 4 input nodes they would be defined as 1000, 0100, 0010 and 0001. Same with outputs. Merging two different inputs in some intermediate node would result in a combination of different types of flows (e.g. 1100 or 1010).</p>
+<p><img src="img/model-flow-diversity.png" alt="" /></p>
+</div>
+<div id="how-to-use-it" class="section level2">
+<h2>HOW TO USE IT</h2>
+<p>Parameters:</p>
+<ul>
+<li><p>Set the number of inputs and outputs (from 20 to 60 should be OK)</p></li>
+<li><p>Set the number of initial links (3 is enough to start with)</p></li>
+<li><p>Link balance is the threshold for killing links with less flow then a percentage of node flow. With 0.2 you can expect around 2 or 3 links per node.</p></li>
+<li><p>new-processes-factor defines how many new nodes will model try to add at each iteration (number of nodes * factor)</p></li>
+</ul>
+<p>Use <strong>Setup</strong> to apply your parameters and start with <strong>Go</strong>.</p>
+</div>
+<div id="things-to-notice" class="section level2">
+<h2>THINGS TO NOTICE</h2>
+<p>Usually the system nodes get organised in a double-tree hierarchical structure.</p>
+<p>Step 0, 1 and 2:</p>
+<p><img src="img/README-iterations_1-1.png" alt="" /><img src="img/README-iterations_1-2.png" alt="" /><img src="img/README-iterations_1-3.png" alt="" /></p>
+<p>Simulation at 5, 10 and 15:</p>
+<p><img src="img/README-iterations_2-1.png" alt="" /><img src="img/README-iterations_2-2.png" alt="" /><img src="img/README-iterations_2-3.png" alt="" /></p>
+<p>Simulation at 100:</p>
+<p><img src="img/README-iteration_final-1.png" alt="" /></p>
+</div>
+<div id="measures" class="section level2">
+<h2>MEASURES</h2>
+<p>Overall system flow can be measured as a sum of flows at the outputs (f).</p>
+<p>More interesting measure is corrected flow based on expected diversity (h). It is calculated by dividing the flow on every output by number of expected inputs (= number of system inputs) and multiplied by the number of realised inputs.</p>
+<p>If every input is represented in every output, the corrected flow is same as overall system flow.</p>
+<p><img src="img/README-measures-1.png" alt="" /></p>
+</div>
+<div id="things-to-try" class="section level2">
+<h2>THINGS TO TRY</h2>
+<p>Try to change link-balance parameter and observe the speed of convergence and structure shape.</p>
+<p>If you switch off the branch rule, the system can’t find the path to organized structure. Branch rule prohibits cycles in the structure for new nodes and connections.</p>
+</div>
+<div id="credits-and-references" class="section level2">
+<h2>CREDITS AND REFERENCES</h2>
+<p>Darko Bergant, Network Flow, (2015), GitHub repository, <a href="https://github.com/bergant/NetworkFlow" class="uri">https://github.com/bergant/NetworkFlow</a></p>
+<p>This work is licensed under a <a href="http://creativecommons.org/licenses/by-nc-sa/3.0/">Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License</a></p>
+</div>
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+$(document).ready(function () {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+});
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -1,6 +1,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                ;;
 ;; Network flow model
+;;
+;; URL: https://github.com/bergant/NetworkFlow
+;;
+;; Darko Bergant 2014
 ;;                                                                ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -9,8 +13,9 @@ breed [inputs input]
 breed [processes process]
 
 globals [
-  info-updated?
+  
 ]
+
 
 turtles-own [
   p-demand ; demand potential
@@ -18,6 +23,8 @@ turtles-own [
   
   p-outputs ; output portfolio (demand diversity)
   p-inputs ; input portfolio (supply diversity)
+  
+  created ; creation time (tick)  
 ]
 
 links-own [
@@ -33,7 +40,6 @@ links-own [
 
 to setup
   clear-all
-  set info-updated? false
  ; ask patches [ set pcolor white ]
 
   ;colors and shapes
@@ -44,27 +50,28 @@ to setup
   
    ; create nodes
   create-outputs total-outputs [ 
-    set ycor max-pycor - 0.3 * t-size
-    set xcor min-pxcor + ( who + 0.5 ) / total-outputs * ( max-pxcor - min-pxcor ) 
     set p-demand 1.0
     set p-inputs no-turtles
     set p-outputs turtle-set self
+    set ycor max-pycor - 0.3 * t-size
+    set xcor min-pxcor + ( who + 0.5 ) / total-outputs * ( max-pxcor - min-pxcor ) 
   ]
   create-inputs total-inputs [ 
-    set ycor min-pycor + 0.3 * t-size
-    set xcor min-pxcor + ( who - total-outputs + 0.5 ) / total-inputs * ( max-pxcor - min-pxcor ) 
     set p-supply 1.0
     set p-inputs turtle-set self
     set p-outputs no-turtles
+    set ycor min-pycor + 0.3 * t-size
+    set xcor min-pxcor + ( who - total-outputs + 0.5 ) / total-inputs * ( max-pxcor - min-pxcor ) 
   ]
 
+  reset-ticks
   add-process-initial
   
   update-states
 
   layout
   
-  reset-ticks
+  tick
 end
 
 
@@ -76,9 +83,8 @@ end
 
 
 to go
-  ; try to create a new activity
-  add-process
-  repeat (count processes) / 5 [ add-process ]
+  ; try to create new processes
+  repeat max ( list 1  ( new-processes-factor * (count processes)) ) [ add-process ] 
 
   ; update supply and demand type
   ; balance supply and demand amplitude
@@ -107,6 +113,7 @@ to add-process-initial
     set p-outputs no-turtles
     create-links-to n-of  initial-links outputs
     create-links-from n-of initial-links  inputs
+    set created 0
   ]
 end
 
@@ -117,10 +124,10 @@ to add-process
     set p-inputs no-turtles
     set p-outputs no-turtles
     ifelse random 2 = 0 [ add-input ][ add-output ]
+    set created ticks
   ]
   
 end
-
 
 
 ; New node by input branches
@@ -133,42 +140,38 @@ end
 ;      /     \
 ; Branch1   Branch2
 ;
-
 to add-input
- 
+
   ; select the trunk... 
-  let n min list 5 count processes
-  let max-output max [ count p-outputs ] of n-of n processes
-  let trunk-candidates other processes with [ count p-outputs >= max-output   ]
-  if not any? trunk-candidates [stop]
-  let trunk one-of other trunk-candidates
+  let n min list 5 count other processes
+  let trunc-candidates n-of n other processes
+  let trunk max-one-of trunc-candidates [ count p-outputs ]
   
   ;... and 2 branches
-  let branches n-of 2 ( turtle-set inputs other trunk-candidates with [ self != trunk and count my-out-links < 5 ] )
+  let branches n-of 2 ( turtle-set inputs other processes with 
+    [ self != trunk 
+      ; and count my-out-links < 5 
+      and count p-outputs >= [count p-outputs] of trunk 
+    ] 
+  )
   
   let valid? true
   ask branches
   [
-    ;Rule: trunk outputs should not be subset of any branch outputs
-    ;  (razen če je že veja)
-    if BranchRule? [
-      if not member? trunk out-link-neighbors and any? [p-outputs] of trunk 
-      [ if is-subset? ( [p-outputs] of trunk ) p-outputs  [ set valid? false stop ] ]
+    ;Rule: trunk outputs should not be subset of branch outputs
+    if BranchRule? and any? [p-outputs] of trunk and not member? trunk out-link-neighbors 
+    [
+      if is-subset? ( [p-outputs] of trunk ) p-outputs [ set valid? false stop ] 
     ]
   ]
   
   ; connect if valid branch or die
   ifelse valid?
   [ 
-    ; clear existing links from trunk to branches
-    ask branches [ ask my-out-links with [ other-end = trunk ] [  die ] ]
-    ; create links to trunk and from branches
     create-link-to trunk
     create-links-from branches
-    set info-updated? false
   ]
   [
-    ;show "invalid input proposal"
     die
   ]
   
@@ -185,41 +188,36 @@ end
 ;    Trunk
 ;
 to add-output
-  ; select the trunk...
-  let n min list 5 count processes
-  let some-processes n-of n processes
-  let max-input max [ count p-inputs ] of some-processes
-  let trunk-candidates other processes with [ count p-inputs >= max-input   ]  
-  if not any? trunk-candidates [stop]
-  let trunk one-of other trunk-candidates
-  
-  ;... and 2 branches
-  let branches n-of 2 ( turtle-set outputs other trunk-candidates with [ self != trunk  and count my-in-links < 5 ] )
+  ; create trunk ...
+  let n min list 5 count other processes
+  let trunc-candidates n-of n other processes
+  let trunk max-one-of trunc-candidates [ count p-inputs ]
 
+  ;... and 2 branches
+  let branches n-of 2 ( turtle-set outputs other processes with 
+    [ self != trunk 
+      ;and count my-in-links < 5 
+      and count p-inputs >=  [count p-inputs]  of trunk
+    ] 
+  )
   
   let valid? true
   ask branches
   [
-    ;Rule: nasprotna komponenta izbrane veje ne sme pokrivati nasprotnih komponent trunka (razen če je že veja) 
-    ; inputi veje   
-    if BranchRule? [
-      if not member? trunk in-link-neighbors and any? [p-inputs] of trunk
-      [ if is-subset? ( [p-inputs] of trunk ) p-inputs  [ set valid? false stop ] ]
+    ;Rule: trunk inputs should not be subset of branch inpputs
+    if BranchRule? and any? [p-inputs] of trunk and not member? trunk in-link-neighbors 
+    [
+      if is-subset? ( [p-inputs] of trunk ) p-inputs  [ set valid? false stop ]
     ]  
   ]
   
   ; connect if valid branch or die
   ifelse valid?
   [ 
-    ; clear existing links from trunk to branches
-    ask branches [ ask my-in-links with [ other-end = trunk ] [ die ] ]
-    ; create links to trunk and from branches
     create-link-from trunk
     create-links-to branches
-    set info-updated? false
   ]
   [
-    ;show "invalid input proposal"
     die
   ]  
 end
@@ -231,62 +229,47 @@ to-report is-subset? [ a b ]
 end
 
 
-
 to recycle-bin
-  ask processes [ balance-links ] 
-  ask processes [ reduce-node ]
+  ask turtles [ reduce-links ] 
+  if count processes > 1 
+  [
+    ask processes [ reduce-node ]
+  ]
 end
 
 
-to balance-links
+to reduce-links
+  ; remove the link if the link flaw is very low compared to the sum of all links of the node
+
+  ; get the flow of all links from and to the node:
   let total-link-flow sum [ link-flow ] of ( link-set my-in-links my-out-links ) / 2
+  if total-link-flow = 0 [stop]
+
+  ; the link with min flow:
   let min-link min-one-of ( link-set my-in-links my-out-links ) [ link-flow ]
   if  min-link = nobody [ stop ]
-  if total-link-flow != 0 
-  [
-    if [ link-flow ] of min-link / total-link-flow < link-balance [ ask min-link [ die ] set info-updated? false ]
-  ]
-end
-
-to balance-links-old
-  let min-link min-one-of ( link-set my-in-links my-out-links ) [ link-flow ]
-  let max-link max-one-of ( link-set my-in-links my-out-links ) [ link-flow ]
-  if  min-link = nobody or max-link = nobody [ stop ]
   
-  if [ link-flow ] of max-link != 0 
-  [
-    if [ link-flow ] of min-link / [ link-flow ] of max-link < link-balance [ ask min-link [ die ] set info-updated? false]
-  ]
+  ; if the weak link is lower than link-balance * total flow:
+  if [ link-flow ] of min-link / total-link-flow < link-balance [ ask min-link [ die ] ]
 end
 
-to-report link-flow
-  report min ( list lp-supply lp-demand )
-end
-
-to-report node-flow
-  report min ( list p-supply p-demand )
-end
-
-to-report node-comp
-  report min ( list count p-outputs count p-inputs )
-end
 
 to reduce-node
+  ; if the process node have no inputs or no outputs remove node
   if count my-in-links = 0 or count my-out-links = 0 [ die ]  
   
-  if count my-in-links = 1 and count my-out-links = 1
+  ; if it is connected only to 1 output and 1 input remove
+  ; the node and connect the input and output with direct link
+  if count my-in-links = 1 and count my-out-links = 1 
   [
     let p-to [other-end] of one-of my-out-links
     let p-from [other-end] of one-of my-in-links
     if-else any? ( turtle-set p-to p-from ) with [ breed = processes ]
     [
       if p-from != p-to [ ask p-from [ create-link-to p-to ] ]
-      set info-updated? false
       die
     ]
     [
-      ;show self
-      set info-updated? false
       die
     ]
   ]
@@ -294,21 +277,17 @@ end
 
 
 to update-states
-  ;if not info-updated?
-  ;[
-    clear-states
-    repeat 15 
-    [
-      ask turtles 
-      [ 
-        read-from-neighbours 
-        update-potential 
-      ]
+  clear-states
+  repeat 15 
+  [
+    ask turtles 
+    [ 
+      read-from-neighbours 
+      update-potential 
     ]
-    set info-updated? true
-  ;]
+  ]
 end
-
+ 
 to clear-states
   ask processes [ set p-outputs no-turtles set p-inputs no-turtles set p-supply 0 set p-demand 0 ]
   ask outputs [ set p-inputs no-turtles set p-supply 0 ]
@@ -334,6 +313,7 @@ to read-from-neighbours
     set p-demand sum [ lp-demand ] of my-out-links
     set p-outputs turtle-set [p-outputs] of out-link-neighbors
   ]
+  
 end
 
 to update-potential
@@ -352,6 +332,24 @@ to update-potential
   
 end
 
+
+to-report link-flow
+  report min ( list lp-supply lp-demand )
+end
+
+
+to-report node-flow
+  report min ( list p-supply p-demand )
+end
+
+to-report node-comp
+  report min ( list count p-outputs count p-inputs )
+end
+
+to-report flow-diversity
+  ; overall diversity measure (h)
+  report sum [ node-flow * count p-inputs / total-inputs ] of outputs
+end
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                 ;;
@@ -379,21 +377,23 @@ to layout
 end
 
 
-
+to-report node-rgb
+    let ci count p-outputs
+    let co count p-inputs
+    let c1 ci / ( max list (co + ci) 1 ) * 255
+    let c2 co / ( max list (ci + co) 1 ) * 255
+    report (list c1 120 c2 )
+end
 
 to display-turtle
     
-    let ci count p-outputs
-    let co count p-inputs
-    ;show ci
-    let c1 ci / ( max list (ci + co) 1 ) * 255
-    let c2 co / ( max list (ci + co) 1 ) * 255
-    set color approximate-rgb c1 120 c2 
+    let node_col node-rgb
+    set color approximate-rgb item 0 node_col item 1 node_col item 2 node_col
     if breed = outputs [ set color blue - 1 ]
     if breed = inputs [ set color red - 1 ]
     
     set-opacity 0.80 
-    set size sqrt ( min ( list p-demand p-supply ) ) / 2 + 0.3 * t-size
+    set size ( sqrt ( min ( list p-demand p-supply ) ) / 2 + 0.3 ) * t-size
     ;set posx
 
     set label ""
@@ -467,50 +467,17 @@ to set-opacity [ opacity ] ; 0..100
     [ set color lput ( opacity * 255 ) sublist color 0 3 ]
     [ set color lput ( opacity * 255 ) extract-rgb color ]
 end
-
-
-to export-graph
-  carefully [ file-delete "edges.csv" ] []
-  file-open "edges.csv"  ;; Opening file for writing
-  ask links
-  [ 
-    ask both-ends with [ member? myself my-out-links ] [ file-type (word who ";")   ]
-    ask both-ends with [ member? myself my-in-links ] [ file-type (word who ";")  ]
-    file-print (word self ";" round ( lp-demand * 100 ) ";" round ( lp-supply * 100 ) ) 
-  ]
-  file-close  
-  carefully [ file-delete "vertices.csv" ] []
-  file-open "vertices.csv"  ;; Opening file for writing
-  ask turtles
-  [ 
-    file-print (word ";" who ";" breed ";" round( p-demand * 100 ) ";" round( p-supply * 100)  ";" count p-outputs ";" count  p-inputs ";" ) 
-  ]
-  file-close  
-  
-end
-
-to movie [ number-of-steps ]
-  
-  setup
-  movie-start "out.mov"
-  movie-grab-view ;; show the initial state
-  repeat number-of-steps
-  [ go
-    movie-grab-view ]
-  movie-close
-
-end
 @#$#@#$#@
 GRAPHICS-WINDOW
-226
+204
 10
-731
-536
+752
+579
 20
 20
-12.0732
+13.122
 1
-10
+12
 1
 1
 1
@@ -560,7 +527,7 @@ NIL
 G
 NIL
 NIL
-1
+0
 
 BUTTON
 1124
@@ -579,17 +546,6 @@ NIL
 NIL
 1
 
-MONITOR
-891
-168
-947
-213
-links
-count links
-0
-1
-11
-
 BUTTON
 80
 18
@@ -605,7 +561,7 @@ NIL
 NIL
 NIL
 NIL
-1
+0
 
 SLIDER
 12
@@ -616,7 +572,7 @@ total-outputs
 total-outputs
 1
 64
-64
+20
 1
 1
 NIL
@@ -631,7 +587,7 @@ total-inputs
 total-inputs
 1
 64
-64
+20
 1
 1
 NIL
@@ -642,9 +598,9 @@ PLOT
 10
 1192
 160
-Last output
+System flow
 tick
-count
+flow
 0.0
 10.0
 0.0
@@ -653,9 +609,9 @@ true
 true
 "" ""
 PENS
-"Total output" 1.0 0 -7500403 true "" "plot sum [ min ( list p-demand p-supply ) ] of outputs"
-"Market limit" 1.0 2 -10899396 true "" "plot count outputs"
-"Diversity on output" 1.0 0 -2674135 true "" "plot sum [ min ( list p-demand p-supply ) * count p-inputs / total-inputs ] of outputs"
+"M" 1.0 2 -7500403 true "" "plot count outputs"
+"f" 1.0 0 -13791810 true "" "plot sum [ node-flow ] of outputs"
+"h" 1.0 0 -11881837 true "" "plot flow-diversity"
 
 SLIDER
 10
@@ -683,53 +639,6 @@ show-labels?
 1
 -1000
 
-MONITOR
-819
-168
-888
-213
-processes
-count processes
-17
-1
-11
-
-PLOT
-819
-220
-994
-340
-Links
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 1 -16777216 true "" "set-plot-x-range 1 25\nset-histogram-num-bars 25\nhistogram [ max( list count my-in-links count my-out-links )] of processes"
-
-PLOT
-997
-220
-1187
-340
-Component level
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 1 -16777216 true "" "set-plot-x-range 0 count inputs\nset-histogram-num-bars count inputs\nhistogram [min (list count p-inputs count p-outputs)] of processes"
-
 PLOT
 820
 341
@@ -754,7 +663,7 @@ PLOT
 1186
 471
 log-log node flow
-fitness
+flow
 number of nodes
 0.0
 1.0
@@ -764,7 +673,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 2 -16777216 true "" "let max-degree max [ node-flow ] of turtles\n;; for this plot, the axes are logarithmic, so we can't\n;; use \"histogram-from\"; we have to plot the points\n;; ourselves one at a time\nplot-pen-reset  ;; erase what we plotted before\n;; the way we create the network there is never a zero degree node,\n;; so start plotting at degree one\nlet degree 1\nlet step 1.5\nwhile [degree <= max-degree] [\n  let matches turtles with [ node-flow > degree and node-flow <= degree * step]\n  if any? matches\n    [ plotxy log degree 2\n             log (count matches) 2 ]\n  set degree degree * step\n]"
+"default" 1.0 2 -16777216 true "" "let max-degree total-outputs\n;; for this plot, the axes are logarithmic, so we can't\n;; use \"histogram-from\"; we have to plot the points\n;; ourselves one at a time\nplot-pen-reset  ;; erase what we plotted before\n;; the way we create the network there is never a zero degree node,\n;; so start plotting at degree one\nlet degree 1\nlet step 2\nwhile [degree <= max-degree * step] [\n  let matches turtles with [ node-flow > degree and node-flow <= degree * step]\n  if any? matches\n    [ plotxy log degree 2\n             log (count matches) 2 ]\n  set degree degree * step\n]"
 
 SWITCH
 824
@@ -778,12 +687,12 @@ show-labels2?
 -1000
 
 BUTTON
-11
-410
-111
-443
+12
+420
+112
+453
 Add process
-add-process
+add-process\ndisplay
 NIL
 1
 T
@@ -795,10 +704,10 @@ NIL
 1
 
 BUTTON
-121
-410
-193
-443
+122
+420
+194
+453
 Update
 repeat 10 [ update-states ]\nlayout
 NIL
@@ -812,10 +721,10 @@ NIL
 1
 
 BUTTON
-52
-468
-146
-501
+53
+478
+147
+511
 Recycle Bin
 recycle-bin\nlayout
 NIL
@@ -845,28 +754,6 @@ NIL
 NIL
 1
 
-MONITOR
-951
-168
-1040
-213
-Average
-sum [ count p-inputs ] of outputs /  count outputs
-2
-1
-11
-
-MONITOR
-1046
-168
-1120
-213
-Median out
-median [ count p-inputs ] of outputs
-17
-1
-11
-
 SLIDER
 10
 249
@@ -876,33 +763,11 @@ link-balance
 link-balance
 0
 0.5
-0.2
+0.18
 0.02
 1
 NIL
 HORIZONTAL
-
-MONITOR
-1125
-168
-1213
-213
-Completed
-count outputs with [ count p-inputs = count inputs ]
-3
-1
-11
-
-MONITOR
-1224
-173
-1281
-218
-Flow
-max [ link-flow ] of links
-17
-1
-11
 
 INPUTBOX
 820
@@ -910,7 +775,7 @@ INPUTBOX
 892
 546
 spring-c
-0.5
+0.2
 1
 0
 Number
@@ -921,7 +786,7 @@ INPUTBOX
 948
 547
 spring-l
-2
+1
 1
 0
 Number
@@ -970,42 +835,173 @@ BranchRule?
 1
 -1000
 
+MONITOR
+1191
+338
+1270
+383
+Median links
+median [ count my-in-links + count my-out-links] of processes
+1
+1
+11
+
+PLOT
+820
+170
+1229
+325
+System complexity
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+true
+"" ""
+PENS
+"Processes" 1.0 0 -13791810 true "" "plot count processes"
+"Links" 1.0 0 -11085214 true "" "plot count links"
+"2 * processes" 1.0 0 -4539718 true "" "plot 2 * count processes"
+"2 * (ins + outs)" 1.0 0 -1513240 true "" "plot 2 * (count inputs + count outputs)"
+
+BUTTON
+1125
+572
+1226
+605
+ImportWorld
+import-world \"../Exportworld.csv\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+MONITOR
+1211
+114
+1268
+159
+Flow
+flow-diversity
+1
+1
+11
+
+MONITOR
+1274
+339
+1337
+384
+Max links
+max [ count my-in-links + count my-out-links] of processes
+1
+1
+11
+
+SLIDER
+10
+339
+182
+372
+new-processes-factor
+new-processes-factor
+0.1
+1
+0.15
+0.05
+1
+NIL
+HORIZONTAL
+
+BUTTON
+1127
+613
+1228
+646
+ExportWorld
+export-world \"../Exportworld.csv\"
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
 @#$#@#$#@
+# Network Flow Model
+
 ## WHAT IS IT?
 
-This is a model of process network formation.
+The model shows self-organisation of network structure optimising flow from fixed diverse inputs to fixed diverse outputs.
+
 
 ## HOW IT WORKS
 
-(what rules the agents use to create the overall behavior of the model)
+### Open System	
+Model simulates a distribution of demand and supply to intermediate network nodes based on system inputs and outputs. Inputs represent fixed diverse supply and outputs represent fixed diverse demand.
+
+### Network Structure	
+Intermediate nodes are connected to each other as inputs and outputs. Each node represents a demand to his input nodes and supply to his output nodes. Each node is also an information source to other nodes – current demand level is sensed from output nodes and supply level is sensed from input nodes.
+
+### Dynamic System 	
+The network structure is self-designed and based on the decisions of individual vertices. The connection between two vertices is kept only if there is enough flow between the vertices which share the connection. New vertices are born periodically and they survive only if they carry enough flow. Flow is defined as the least of supply and demand.	
+
+### Bounded Information	
+Each vertex can only use the information available at neighbour vertices. 	Also there is a maximum number of connections each vertex can handle. But there is no quantitative restrictions on flow for nodes nor connections.	
+
+### Diversity 
+Each input node represent unique supply (good or service) and each output node represent special demand. The model defines each system input as a unit vector in N-dimensional space (if there are N inputs). In English: in case of 4 input nodes they would be defined as 1000, 0100, 0010 and 0001. Same with outputs. Merging two different inputs in some intermediate node would result in a combination of different types of flows (e.g. 1100 or 1010). 	
+
 
 ## HOW TO USE IT
 
-(how to use the model, including a description of each of the items in the Interface tab)
+Parameters:
+
+- Set the number of inputs and outputs (from 20 to 60 should be OK)
+
+- Set the number of initial links (3 is enough to start with)
+
+- Link balance is the threshold for killing links with less flow then a percentage of node flow. With 0.2 you can expect around 2 or 3 links per node.
+
+- new-processes-factor defines how many new nodes will model try to add at each iteration (number of nodes * factor)
+
+Use **Setup** to apply your parameters and start with **Go**.
 
 ## THINGS TO NOTICE
 
-(suggested things for the user to notice while running the model)
+Usually nodes get organised in a double-tree hierarchical structure.
+
 
 ## THINGS TO TRY
 
-(suggested things for the user to try to do (move sliders, switches, etc.) with the model)
+Try to change link-balance parameter and observe the speed of convergence and structure shape.
 
-## EXTENDING THE MODEL
+If you switch off the branch rule, the system can't find the path to organized structure. Branch rule prohibits cycles in the structure for new nodes and connections.
 
-(suggested things to add or change in the Code tab to make the model more complicated, detailed, accurate, etc.)
 
-## NETLOGO FEATURES
 
-(interesting or unusual features of NetLogo that the model uses, particularly in the Code tab; or where workarounds were needed for missing features)
-
-## RELATED MODELS
-
-(models in the NetLogo Models Library and elsewhere which are of related interest)
 
 ## CREDITS AND REFERENCES
 
-(a reference to the model's URL on the web if it has one, as well as any other necessary credits, citations, and links)
+Darko Bergant 
+
+https://github.com/bergant/NetworkFlow
+
+![Creative Commons License](https://i.creativecommons.org/l/by-nc-sa/3.0/88x31.png)
+
+
+This work is licensed under a [Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License](http://creativecommons.org/licenses/by-nc-sa/3.0/)
 @#$#@#$#@
 default
 true
@@ -1313,7 +1309,7 @@ Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 
 @#$#@#$#@
-NetLogo 5.1.0
+NetLogo 5.2.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
