@@ -16,7 +16,7 @@ The model demonstrates self-organisation of network structure, optimising flow f
 
 ## HOW IT WORKS
 
-**Open System	**
+**Open System**
 
 Model simulates a distribution of demand and supply to intermediate network nodes based on system inputs and outputs. Inputs represent fixed diverse supply and outputs represent fixed diverse demand.
 

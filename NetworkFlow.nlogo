@@ -1,10 +1,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;                                                                ;;
 ;; Network flow model
+;; v 0.2 2016-03-27
 ;;
 ;; URL: https://github.com/bergant/NetworkFlow
 ;;
-;; Darko Bergant 2014
+;; Darko Bergant
 ;;                                                                ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -572,7 +573,7 @@ total-outputs
 total-outputs
 1
 64
-20
+32
 1
 1
 NIL
@@ -587,7 +588,7 @@ total-inputs
 total-inputs
 1
 64
-20
+32
 1
 1
 NIL
@@ -763,7 +764,7 @@ link-balance
 link-balance
 0
 0.5
-0.18
+0.2
 0.02
 1
 NIL
@@ -808,7 +809,7 @@ INPUTBOX
 1110
 545
 t-size
-1.5
+1.1
 1
 0
 Number
@@ -915,7 +916,7 @@ new-processes-factor
 new-processes-factor
 0.1
 1
-0.15
+0.25
 0.05
 1
 NIL
@@ -943,7 +944,7 @@ NIL
 
 ## WHAT IS IT?
 
-The model shows self-organisation of network structure optimising flow from fixed diverse inputs to fixed diverse outputs.
+The model shows self-organisation of network structure, optimising flow from fixed diverse inputs to fixed diverse outputs.
 
 
 ## HOW IT WORKS
@@ -958,7 +959,7 @@ Intermediate nodes are connected to each other as inputs and outputs. Each node 
 The network structure is self-designed and based on the decisions of individual vertices. The connection between two vertices is kept only if there is enough flow between the vertices which share the connection. New vertices are born periodically and they survive only if they carry enough flow. Flow is defined as the least of supply and demand.	
 
 ### Bounded Information	
-Each vertex can only use the information available at neighbour vertices. 	Also there is a maximum number of connections each vertex can handle. But there is no quantitative restrictions on flow for nodes nor connections.	
+Each node can only use the information available at his neighbour nodes. Also there is a maximum number of connections each node can handle. But there is no quantitative restrictions on flow (on nodes nor connections).	
 
 ### Diversity 
 Each input node represent unique supply (good or service) and each output node represent special demand. The model defines each system input as a unit vector in N-dimensional space (if there are N inputs). In English: in case of 4 input nodes they would be defined as 1000, 0100, 0010 and 0001. Same with outputs. Merging two different inputs in some intermediate node would result in a combination of different types of flows (e.g. 1100 or 1010). 	
@@ -991,17 +992,13 @@ If you switch off the branch rule, the system can't find the path to organized s
 
 
 
-
 ## CREDITS AND REFERENCES
 
-Darko Bergant 
-
-https://github.com/bergant/NetworkFlow
-
-![Creative Commons License](https://i.creativecommons.org/l/by-nc-sa/3.0/88x31.png)
+Darko Bergant, Network Flow, (2015), GitHub repository, https://github.com/bergant/NetworkFlow
 
 
 This work is licensed under a [Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License](http://creativecommons.org/licenses/by-nc-sa/3.0/)
+
 @#$#@#$#@
 default
 true
